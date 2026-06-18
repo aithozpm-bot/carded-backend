@@ -40,16 +40,12 @@ DATABASE_URL=postgresql://neondb_owner:YOUR_PASSWORD@ep-your-endpoint.us-east-2.
 JWT_SECRET=your_long_random_secret
 SMTP_USER=your-email@gmail.com
 SMTP_PASS=your_gmail_app_password
-ADMIN_EMAIL=admin@example.com
 ```
 
 Optional:
 ```
 NODE_ENV=production
 BASE_URL=https://your-app.vercel.app
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=465
-SMTP_SECURE=true
 GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
 ```
 
@@ -171,7 +167,6 @@ DATABASE_URL
 JWT_SECRET
 SMTP_USER
 SMTP_PASS
-ADMIN_EMAIL
 NODE_ENV=production
 ```
 

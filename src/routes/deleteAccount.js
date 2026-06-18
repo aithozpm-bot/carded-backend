@@ -1,10 +1,8 @@
 const express = require('express');
-const { transporter, SMTP_USER } = require('../utils/mailer');
+const { transporter, SMTP_USER, ADMIN_EMAIL } = require('../utils/mailer');
 const { query } = require('../db/pool');
 
 const router = express.Router();
-
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
 
 function pageShell(title, body) {
   return `<!DOCTYPE html>
@@ -103,7 +101,7 @@ function isValidEmail(email) {
 
 async function sendDeleteRequestEmail({ email, reason, userFound }) {
   if (!ADMIN_EMAIL) {
-    throw new Error('ADMIN_EMAIL is not set in .env');
+    throw new Error('ADMIN_EMAIL is not configured');
   }
 
   const timestamp = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
