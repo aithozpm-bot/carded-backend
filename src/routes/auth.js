@@ -1,8 +1,8 @@
 const express    = require('express');
 const bcrypt     = require('bcryptjs');
 const crypto     = require('crypto');
-const nodemailer = require('nodemailer');
 require('dotenv').config();
+const { transporter, SMTP_USER } = require('../utils/mailer');
 const { OAuth2Client } = require('google-auth-library');
 const GOOGLE_WEB_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '1055325279796-191okpte9cbuuf6n2fj4fecr1e5vq5i1.apps.googleusercontent.com';
 const GOOGLE_ANDROID_CLIENT_ID = process.env.GOOGLE_ANDROID_CLIENT_ID || '1055325279796-fk31vnfnug5289hk3h1jutb73ver3e29.apps.googleusercontent.com';
@@ -12,21 +12,9 @@ const { authMiddleware, signToken } = require('../middleware/auth');
 
 const router = express.Router();
 
-// ─── Brevo SMTP transporter ───────────────────────────────────
-
-const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 465,
-  secure: true, // STARTTLS
-  auth: {
-    user: 'yogimishra1996@gmail.com',
-    pass: 'aamp ooln xzkg tadq',
-  },
-});
-
 async function sendResetEmail(toEmail, resetCode) {
   await transporter.sendMail({
-    from: '"Carded App" <a332be001@smtp-brevo.com>',
+    from: `"Carded App" <${SMTP_USER}>`,
     to:   toEmail,
     subject: 'Your Carded Password Reset Code',
     text: `Your password reset code is: ${resetCode}\n\nThis code expires in 15 minutes.\n\nIf you did not request this, ignore this email.`,

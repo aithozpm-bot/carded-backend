@@ -2,9 +2,10 @@ const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
 
-const authRoutes      = require('./routes/auth');
-const cardsRoutes     = require('./routes/cards');
-const collectedRoutes = require('./routes/collected');
+const authRoutes          = require('./routes/auth');
+const cardsRoutes         = require('./routes/cards');
+const collectedRoutes     = require('./routes/collected');
+const deleteAccountRoutes = require('./routes/deleteAccount');
 
 // ─── Swagger ──────────────────────────────────────────────────
 const swaggerUi   = require('swagger-ui-express');
@@ -30,6 +31,7 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
 app.get('/api-docs.json', (_req, res) => res.json(swaggerSpec));
 
 // ─── Routes ───────────────────────────────────────────────────
+app.use('/',          deleteAccountRoutes);
 app.use('/auth',      authRoutes);
 app.use('/cards',     cardsRoutes);
 app.use('/collected', collectedRoutes);

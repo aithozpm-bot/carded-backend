@@ -1,4 +1,6 @@
-# 🃏 Carded Backend — Express.js + PostgreSQL (Neon) + Vercel
+﻿# 🃏 Carded Backend — Express.js + PostgreSQL (Neon) + Vercel
+
+Backend API for the Carded app using Express, PostgreSQL on Neon, JWT auth, email support, and account deletion requests.
 
 ---
 
@@ -6,59 +8,79 @@
 
 ```
 src/
-├── index.js           → app entry (local + Vercel export)
+├── index.js             # App entry, middleware, routing
 ├── db/
-│   ├── pool.js        → pg connection pool
-│   ├── schema.sql     → run once on Neon to create tables
-│   └── migrate.js     → CLI migration runner
+│   ├── pool.js          # PostgreSQL connection pool
+│   ├── schema.sql       # Neon schema for users/cards/collected
+│   └── migrate.js       # CLI migration runner
 ├── middleware/
-│   └── auth.js        → JWT verify
-└── routes/
-    ├── auth.js        → /auth/*
-    ├── cards.js       → /cards/*
-    └── collected.js   → /collected/*
-vercel.json            → Vercel config
-.env.example           → copy to .env for local dev
+│   └── auth.js          # JWT auth middleware
+├── routes/
+│   ├── auth.js          # /auth/* endpoints
+│   ├── cards.js         # /cards/* endpoints
+│   ├── collected.js     # /collected/* endpoints
+│   └── deleteAccount.js # /delete-account form + email request
+└── utils/
+    └── mailer.js        # SMTP mailer helper
+
+.env.example              # env vars for local dev
+package.json              # scripts, dependencies
+vercel.json               # Vercel config
 ```
 
 ---
 
-## 🗄️ Step 1 — Run Schema on Neon
+## 🔧 Environment Variables
 
-Go to [console.neon.tech](https://console.neon.tech) → SQL Editor → paste `src/db/schema.sql` → Run.
+Copy `.env.example` to `.env` and update the values before running locally.
 
-OR via CLI:
+Required:
+```
+DATABASE_URL=postgresql://neondb_owner:YOUR_PASSWORD@ep-your-endpoint.us-east-2.aws.neon.tech/neondb?sslmode=require
+JWT_SECRET=your_long_random_secret
+SMTP_USER=your-email@gmail.com
+SMTP_PASS=your_gmail_app_password
+ADMIN_EMAIL=admin@example.com
+```
+
+Optional:
+```
+NODE_ENV=production
+BASE_URL=https://your-app.vercel.app
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=465
+SMTP_SECURE=true
+GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
+```
+
+---
+
+## 🗄️ Step 1 — Initialize Database
+
+Run the Neon schema once in the Neon SQL editor, or locally via CLI:
+
 ```bash
 npm install
-cp .env.example .env   # fill in DATABASE_URL + JWT_SECRET
+cp .env.example .env
+# update DATABASE_URL and other env values
 node src/db/migrate.js
 ```
 
 ---
 
-## 🚀 Step 2 — Deploy to Vercel
+## 🚀 Step 2 — Run Locally
 
 ```bash
-npm i -g vercel
-vercel        # follow prompts
-vercel --prod # production deploy
+npm install
+cp .env.example .env
+npm run dev
 ```
 
-Set these env vars in Vercel Dashboard → Settings → Environment Variables:
-```
-DATABASE_URL = postgresql://neondb_owner:PASS@ep-xxx.neon.tech/neondb?sslmode=require
-JWT_SECRET   = your_long_random_secret
-NODE_ENV     = production
-```
+Then visit:
 
----
-
-## 📱 Step 3 — Update Flutter
-
-```dart
-// lib/services/api_client.dart
-static const String baseUrl = 'https://your-project.vercel.app';
-```
+- `http://localhost:3000/health`
+- `http://localhost:3000/api-docs`
+- `http://localhost:3000/delete-account`
 
 ---
 
@@ -67,57 +89,27 @@ static const String baseUrl = 'https://your-project.vercel.app';
 | Method | Route | Auth | Description |
 |---|---|---|---|
 | GET | /health | ❌ | Health check |
+| GET | /delete-account | ❌ | Account deletion request form |
+| POST | /delete-account | ❌ | Submit account deletion request |
 | POST | /auth/register | ❌ | Register |
 | POST | /auth/login | ❌ | Login |
-| GET | /auth/me | ✅ | Get profile |
+| GET | /auth/me | ✅ | Get current profile |
 | PUT | /auth/password | ✅ | Change password |
-| POST | /auth/forgot-password | ❌ | Reset request |
-| GET | /cards | ✅ | My cards list |
-| POST | /cards | ✅ | Create card (max 5) |
-| GET | /cards/:id | ✅ | Get card |
+| POST | /auth/forgot-password | ❌ | Request password reset |
+| GET | /cards | ✅ | List my cards |
+| POST | /cards | ✅ | Create a card (max 5) |
+| GET | /cards/:id | ✅ | Get card details |
 | PUT | /cards/:id | ✅ | Update card |
 | DELETE | /cards/:id | ✅ | Delete card |
-| GET | /collected | ✅ | Collected list |
+| GET | /collected | ✅ | List collected cards |
 | POST | /collected | ✅ | Save scanned card |
-| GET | /collected/:id | ✅ | Get collected |
+| GET | /collected/:id | ✅ | Get collected card |
 | PUT | /collected/:id | ✅ | Update tags/remarks |
-| DELETE | /collected/:id | ✅ | Delete collected |
-
-
-# 🃏 Carded Backend — Express.js API
-
-REST API for the Carded app. Uses the **file system** for storage (JSON files per user). Ready to deploy on Render.
+| DELETE | /collected/:id | ✅ | Delete collected card |
 
 ---
 
-## 📁 Folder Structure
-
-```
-carded-backend/
-├── src/
-│   ├── index.js              # App entry, middleware, routing
-│   ├── middleware/
-│   │   └── auth.js           # JWT verify middleware + signToken()
-│   ├── routes/
-│   │   ├── auth.js           # /auth/* endpoints
-│   │   ├── cards.js          # /cards/* endpoints
-│   │   └── collected.js      # /collected/* endpoints
-│   └── utils/
-│       └── fileStore.js      # All JSON file read/write helpers
-├── data/                     # Auto-created at runtime
-│   ├── users.json            # { [userId]: { id, fullName, email, phone, passwordHash } }
-│   └── users/
-│       └── {userId}/
-│           ├── cards.json    # Array of VisitingCard
-│           └── collected.json# Array of CollectedCard
-├── .env.example
-├── .gitignore
-└── package.json
-```
-
----
-
-## 🔌 API Reference
+## 📄 API Reference
 
 ### Auth
 
@@ -129,88 +121,70 @@ carded-backend/
 | PUT | `/auth/password` | ✅ | `currentPassword, newPassword` | Change password |
 | POST | `/auth/forgot-password` | ❌ | `emailOrPhone` | Request password reset |
 
-### My Cards (max 5 per user)
+### Delete Account
+
+| Method | Route | Auth | Body | Description |
+|---|---|---|---|---|
+| GET | `/delete-account` | ❌ | — | Show deletion request form |
+| POST | `/delete-account` | ❌ | `email, confirm, reason?` | Send deletion request email to admin |
+
+### My Cards
 
 | Method | Route | Auth | Body | Description |
 |---|---|---|---|---|
 | GET | `/cards` | ✅ | — | Get all my cards |
 | POST | `/cards` | ✅ | Card fields | Create new card |
+| GET | `/cards/:id` | ✅ | — | Get card by id |
 | PUT | `/cards/:id` | ✅ | Card fields (partial ok) | Update card |
 | DELETE | `/cards/:id` | ✅ | — | Delete card |
-| GET | `/cards/:id` | ✅ | — | Get single card |
 
 ### Collected Cards
 
 | Method | Route | Auth | Body | Description |
 |---|---|---|---|---|
-| GET | `/collected` | ✅ | — | Get all collected cards (newest first) |
-| POST | `/collected` | ✅ | Card fields (from QR scan) | Save scanned card |
+| GET | `/collected` | ✅ | — | Get all collected cards |
+| POST | `/collected` | ✅ | Card fields | Save scanned card |
+| GET | `/collected/:id` | ✅ | — | Get single collected card |
 | PUT | `/collected/:id` | ✅ | `category?, leadType?, remarks?` | Update tags/notes |
 | DELETE | `/collected/:id` | ✅ | — | Delete collected card |
-| GET | `/collected/:id` | ✅ | — | Get single collected card |
 
 ### Auth header format
+
 ```
 Authorization: Bearer <jwt_token>
 ```
 
 ---
 
-## 🚀 Deploy to Render
+## 🚀 Deploy to Vercel
 
-### Step 1 — Push to GitHub
 ```bash
-cd carded-backend
-git init
-git add .
-git commit -m "Initial Carded backend"
-git remote add origin https://github.com/YOUR_USERNAME/carded-backend.git
-git push -u origin main
+npm i -g vercel
+vercel
+vercel --prod
 ```
 
-### Step 2 — Create Web Service on Render
-1. Go to [render.com](https://render.com) → **New → Web Service**
-2. Connect your GitHub repo
-3. Fill in:
-   - **Name**: `carded-api`
-   - **Runtime**: `Node`
-   - **Build Command**: `npm install`
-   - **Start Command**: `npm start`
-   - **Instance Type**: Free
+In Vercel dashboard, set the following environment variables:
 
-### Step 3 — Set Environment Variables
-In Render → Environment tab, add:
 ```
-JWT_SECRET = your_super_long_random_secret_here_change_this
+DATABASE_URL
+JWT_SECRET
+SMTP_USER
+SMTP_PASS
+ADMIN_EMAIL
+NODE_ENV=production
 ```
-
-### Step 4 — Update Flutter
-In `lib/services/api_client.dart`, set your Render URL:
-```dart
-static const String baseUrl = 'https://carded-api.onrender.com';
-```
-
-> ⚠️ **Render Free Tier Note**: Free instances spin down after 15 minutes of inactivity and take ~30s to wake up. Upgrade to a paid instance for production.
 
 ---
 
-## 🏃 Run Locally
+## 🧪 Quick Local Tests
 
-```bash
-npm install
-cp .env.example .env
-# Edit .env with your JWT_SECRET
-npm run dev   # uses nodemon for hot reload
-# or
-npm start
-```
-
-Test health check:
+Health:
 ```bash
 curl http://localhost:3000/health
 ```
 
-Test register:
+Register:
 ```bash
 curl -X POST http://localhost:3000/auth/register \
   -H "Content-Type: application/json" \
@@ -219,285 +193,9 @@ curl -X POST http://localhost:3000/auth/register \
 
 ---
 
-## 🔄 Migrating to Firebase (Future)
-
-Replace `src/utils/fileStore.js` with Firebase Admin SDK calls. All route files (`auth.js`, `cards.js`, `collected.js`) stay the same — only the data layer changes.
-
-```js
-// fileStore.js → firebase version
-const { initializeApp, cert } = require('firebase-admin/app');
-const { getFirestore } = require('firebase-admin/firestore');
-// ... replace readJSON/writeJSON with Firestore get/set
-```
-
-
-#!/bin/bash
-# ============================================================
-# 🃏 CARDED API — CURL TEST COMMANDS
-# ============================================================
-# Base URL — change if using Render
-BASE="http://localhost:3000"
-
-# After login/register, paste your token here:
-TOKEN="PASTE_YOUR_TOKEN_HERE"
-
-# After creating a card, paste its ID here:
-CARD_ID="PASTE_CARD_ID_HERE"
-
-# After collecting a card, paste its ID here:
-COLLECTED_ID="PASTE_COLLECTED_ID_HERE"
-
-
-{"success":true,"token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI4ODVjNTAzNS02ZTA3LTRlNjQtODAxOC04ZjNlZTAzMmM2MzkiLCJpYXQiOjE3NzE1ODQ5NTcsImV4cCI6MTc3NDE3Njk1N30.UWSQSqpQcTiVAV6LLZFt6pKswvYykyXhlU8cU21dkYQ","user":{"id":"885c5035-6e07-4e64-8018-8f3ee032c639","fullName":"John Doe","email":"john1@example.com","phone":"9876543220"}}
-
-curl -s -X POST http://localhost:3000/cards \
-  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI4ODVjNTAzNS02ZTA3LTRlNjQtODAxOC04ZjNlZTAzMmM2MzkiLCJpYXQiOjE3NzE1ODQ5NTcsImV4cCI6MTc3NDE3Njk1N30.UWSQSqpQcTiVAV6LLZFt6pKswvYykyXhlU8cU21dkYQ" \
-  -H "Content-Type: application/json" \
-  -d '{"nickname":"Work Card","name":"John Doe","designation":"PM","company":"Acme","email1":"j@acme.com","phone1":"9876543210","templateIndex":0}' \
-  | python3 -m json.tool
-
-# ============================================================
-# 🔐 AUTH ROUTES
-# ============================================================
-
-# ── 1. Health Check ──────────────────────────────────────────
-curl -s "$BASE/health" | python3 -m json.tool
-
-
-# ── 2. Register ──────────────────────────────────────────────
-curl -s -X POST "$BASE/auth/register" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "fullName": "John Doe",
-    "email": "john@example.com",
-    "phone": "9876543210",
-    "password": "test123"
-  }' | python3 -m json.tool
-
-# 👆 Copy the "token" from response and set TOKEN= above
-
-
-# ── 3. Login ─────────────────────────────────────────────────
-curl -s -X POST "$BASE/auth/login" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "emailOrPhone": "john@example.com",
-    "password": "test123"
-  }' | python3 -m json.tool
-
-# Login with phone instead of email:
-curl -s -X POST "$BASE/auth/login" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "emailOrPhone": "9876543210",
-    "password": "test123"
-  }' | python3 -m json.tool
-
-
-# ── 4. Get Current User (me) ──────────────────────────────────
-curl -s -X GET "$BASE/auth/me" \
-  -H "Authorization: Bearer $TOKEN" | python3 -m json.tool
-
-
-# ── 5. Change Password ────────────────────────────────────────
-curl -s -X PUT "$BASE/auth/password" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "currentPassword": "test123",
-    "newPassword": "newpass456"
-  }' | python3 -m json.tool
-
-
-# ── 6. Forgot Password ────────────────────────────────────────
-curl -s -X POST "$BASE/auth/forgot-password" \
-  -H "Content-Type: application/json" \
-  -d '{"emailOrPhone": "john@example.com"}' | python3 -m json.tool
-
-
-# ── 7. Wrong password (should fail) ──────────────────────────
-curl -s -X POST "$BASE/auth/login" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "emailOrPhone": "john@example.com",
-    "password": "wrongpassword"
-  }' | python3 -m json.tool
-
-
-# ── 8. Duplicate register (should fail) ──────────────────────
-curl -s -X POST "$BASE/auth/register" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "fullName": "John Again",
-    "email": "john@example.com",
-    "phone": "9999999999",
-    "password": "test123"
-  }' | python3 -m json.tool
-
-
-# ============================================================
-# 💳 CARDS ROUTES (My Visiting Cards)
-# ============================================================
-
-# ── 9. Create Card ────────────────────────────────────────────
-curl -s -X POST "$BASE/cards" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "nickname": "Work Card",
-    "name": "John Doe",
-    "designation": "Senior Product Manager",
-    "company": "Acme Corp",
-    "email1": "john@acme.com",
-    "email2": "john@personal.com",
-    "phone1": "+91 98765 43210",
-    "phone2": "+91 98765 43211",
-    "website": "https://johndoe.com",
-    "address": "123 Business Park, Mumbai, MH",
-    "templateIndex": 0
-  }' | python3 -m json.tool
-
-# 👆 Copy the "id" from response and set CARD_ID= above
-
-
-# ── 10. Create Second Card (different template) ───────────────
-curl -s -X POST "$BASE/cards" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "nickname": "Freelance",
-    "name": "John Doe",
-    "designation": "Freelance Designer",
-    "company": "Self Employed",
-    "email1": "john.freelance@gmail.com",
-    "phone1": "+91 98765 43210",
-    "templateIndex": 2
-  }' | python3 -m json.tool
-
-
-# ── 11. Get All My Cards ──────────────────────────────────────
-curl -s -X GET "$BASE/cards" \
-  -H "Authorization: Bearer $TOKEN" | python3 -m json.tool
-
-
-# ── 12. Get Single Card ───────────────────────────────────────
-curl -s -X GET "$BASE/cards/$CARD_ID" \
-  -H "Authorization: Bearer $TOKEN" | python3 -m json.tool
-
-
-# ── 13. Update Card ───────────────────────────────────────────
-curl -s -X PUT "$BASE/cards/$CARD_ID" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "nickname": "Work Card (Updated)",
-    "designation": "Lead Product Manager",
-    "website": "https://johndoe.dev"
-  }' | python3 -m json.tool
-
-
-# ── 14. Delete Card ───────────────────────────────────────────
-curl -s -X DELETE "$BASE/cards/$CARD_ID" \
-  -H "Authorization: Bearer $TOKEN" | python3 -m json.tool
-
-
-# ── 15. Card limit test (create 5 then try 6th — should fail) ─
-for i in 1 2 3 4 5 6; do
-  echo "--- Creating card $i ---"
-  curl -s -X POST "$BASE/cards" \
-    -H "Authorization: Bearer $TOKEN" \
-    -H "Content-Type: application/json" \
-    -d "{
-      \"nickname\": \"Card $i\",
-      \"name\": \"John Doe\",
-      \"designation\": \"Manager\",
-      \"company\": \"Company $i\",
-      \"email1\": \"john$i@test.com\",
-      \"phone1\": \"98765432$i\",
-      \"templateIndex\": $((i % 6))
-    }" | python3 -m json.tool
-done
-
-
-# ── 16. No auth (should fail with 401) ───────────────────────
-curl -s -X GET "$BASE/cards" | python3 -m json.tool
-
-
-# ============================================================
-# 📇 COLLECTED CARDS ROUTES (Scanned Cards)
-# ============================================================
-
-# ── 17. Save Collected Card (simulates QR scan) ───────────────
-curl -s -X POST "$BASE/collected" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Jane Smith",
-    "designation": "CEO",
-    "company": "TechStart Inc",
-    "email1": "jane@techstart.com",
-    "email2": "jane.smith@gmail.com",
-    "phone1": "+91 87654 32109",
-    "phone2": "",
-    "website": "https://techstart.com",
-    "address": "456 Tech Hub, Bangalore",
-    "templateIndex": 1
-  }' | python3 -m json.tool
-
-# 👆 Copy the "id" and set COLLECTED_ID= above
-
-
-# ── 18. Save Another Collected Card ──────────────────────────
-curl -s -X POST "$BASE/collected" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Ravi Kumar",
-    "designation": "CTO",
-    "company": "DevHouse Solutions",
-    "email1": "ravi@devhouse.io",
-    "phone1": "+91 99887 76655",
-    "templateIndex": 3
-  }' | python3 -m json.tool
-
-
-# ── 19. Get All Collected Cards ───────────────────────────────
-curl -s -X GET "$BASE/collected" \
-  -H "Authorization: Bearer $TOKEN" | python3 -m json.tool
-
-
-# ── 20. Get Single Collected Card ────────────────────────────
-curl -s -X GET "$BASE/collected/$COLLECTED_ID" \
-  -H "Authorization: Bearer $TOKEN" | python3 -m json.tool
-
-
-# ── 21. Update Tags / Notes (category, leadType, remarks) ────
-curl -s -X PUT "$BASE/collected/$COLLECTED_ID" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "category": "Client",
-    "leadType": "Hot",
-    "remarks": "Met at TechConf 2025. Very interested in our product. Follow up next week."
-  }' | python3 -m json.tool
-
-
-# ── 22. Update only remarks ───────────────────────────────────
-curl -s -X PUT "$BASE/collected/$COLLECTED_ID" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"remarks": "Called on 20-02-2026. Scheduled demo for next Monday."}' | python3 -m json.tool
-
-
-# ── 23. Delete Collected Card ─────────────────────────────────
-curl -s -X DELETE "$BASE/collected/$COLLECTED_ID" \
-  -H "Authorization: Bearer $TOKEN" | python3 -m json.tool
-
-
-# ── 24. Get non-existent card (should fail with 404) ─────────
-curl -s -X GET "$BASE/collected/fake-id-12345" \
-  -H "Authorization: Bearer $TOKEN" | python3 -m json.tool
-
-
-# ── 25. Invalid route (should fail with 404) ─────────────────
-curl -s -X GET "$BASE/invalid-route" | python3 -m json.tool
+## 📝 Notes
+
+- Email sending is handled in `src/utils/mailer.js` via SMTP.
+- Account deletion requests are submitted through `/delete-account` and emailed to `ADMIN_EMAIL`.
+- The app uses PostgreSQL via `src/db/pool.js` and schema in `src/db/schema.sql`.
+- Swagger docs are available at `/api-docs`.
