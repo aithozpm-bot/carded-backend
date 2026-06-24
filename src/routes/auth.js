@@ -3,10 +3,7 @@ const bcrypt     = require('bcryptjs');
 const crypto     = require('crypto');
 require('dotenv').config();
 const { transporter, SMTP_USER } = require('../utils/mailer');
-const { OAuth2Client } = require('google-auth-library');
-const GOOGLE_WEB_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '1055325279796-191okpte9cbuuf6n2fj4fecr1e5vq5i1.apps.googleusercontent.com';
-const GOOGLE_ANDROID_CLIENT_ID = process.env.GOOGLE_ANDROID_CLIENT_ID || '1055325279796-fk31vnfnug5289hk3h1jutb73ver3e29.apps.googleusercontent.com';
-const googleClient = new OAuth2Client(GOOGLE_WEB_CLIENT_ID);
+const { getGoogleAudiences, getGoogleClient } = require('../config/google');
 const { query }  = require('../db/pool');
 const { authMiddleware, signToken } = require('../middleware/auth');
 
@@ -267,6 +264,17 @@ router.post('/reset-password', async (req, res) => {
 // ─── POST /auth/google ─────────────────────────────────────
 router.post('/google', async (req, res) => {
   try {
+    let audiences;
+    try {
+      audiences = getGoogleAudiences();
+    } catch (configErr) {
+      console.error('Google auth config:', configErr.message);
+      return res.status(503).json({
+        success: false,
+        message: 'Google Sign-In is not configured on the server',
+      });
+    }
+
     const { idToken, accessToken } = req.body;
     if (!idToken && !accessToken) {
       return res.status(400).json({ success: false, message: 'idToken or accessToken required' });
@@ -278,7 +286,10 @@ router.post('/google', async (req, res) => {
     let idTokenVerified = false;
     if (idToken) {
       try {
-        const ticket = await googleClient.verifyIdToken({ idToken, audience: [GOOGLE_WEB_CLIENT_ID, GOOGLE_ANDROID_CLIENT_ID] });
+        const ticket = await getGoogleClient().verifyIdToken({
+          idToken,
+          audience: audiences,
+        });
         const payload = ticket.getPayload();
         ({ sub: googleId, email, name, picture } = payload);
         idTokenVerified = true;

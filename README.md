@@ -46,8 +46,12 @@ Optional:
 ```
 NODE_ENV=production
 BASE_URL=https://your-app.vercel.app
-GOOGLE_CLIENT_ID=your-google-client-id.apps.googleusercontent.com
+GOOGLE_CLIENT_ID=your-web-client-id.apps.googleusercontent.com
+GOOGLE_ANDROID_CLIENT_ID=your-android-client-id.apps.googleusercontent.com
 ```
+
+`GOOGLE_CLIENT_ID` is required for Google Sign-In (Firebase Web client ID).
+`GOOGLE_ANDROID_CLIENT_ID` is optional — add only if your `google-services.json` includes an Android OAuth client.
 
 ---
 
