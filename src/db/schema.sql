@@ -123,3 +123,23 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_id ON users(google_id) WHERE 
 ALTER TABLE collected_cards ADD COLUMN IF NOT EXISTS scan_type TEXT NOT NULL DEFAULT 'carded';
 ALTER TABLE collected_cards ADD COLUMN IF NOT EXISTS card_image_url TEXT NOT NULL DEFAULT '';
 ALTER TABLE collected_cards ADD COLUMN IF NOT EXISTS qr_raw_data TEXT NOT NULL DEFAULT '';
+
+-- ─── Auth audit / rate-limit events ──────────────────────────
+CREATE TABLE IF NOT EXISTS auth_events (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  action      TEXT NOT NULL,
+  email       TEXT,
+  user_id     UUID REFERENCES users(id) ON DELETE SET NULL,
+  ip          TEXT,
+  user_agent  TEXT,
+  success     BOOLEAN NOT NULL DEFAULT false,
+  meta        JSONB NOT NULL DEFAULT '{}',
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_auth_events_action_created
+  ON auth_events(action, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_auth_events_email_action_created
+  ON auth_events(email, action, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_auth_events_ip_action_created
+  ON auth_events(ip, action, created_at DESC);

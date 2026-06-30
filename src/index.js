@@ -12,6 +12,8 @@ const swaggerSpec = require('./swagger');
 
 const app = express();
 
+app.set('trust proxy', 1);
+
 // ─── Middleware ───────────────────────────────────────────────
 app.use(cors());
 app.use(express.json({ limit: '2mb' }));

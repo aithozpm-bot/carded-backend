@@ -6,6 +6,13 @@ const { transporter, SMTP_USER } = require('../utils/mailer');
 const { getGoogleAudiences, getGoogleClient } = require('../config/google');
 const { query }  = require('../db/pool');
 const { authMiddleware, signToken } = require('../middleware/auth');
+const {
+  logAuthEvent,
+  checkForgotPasswordLimits,
+  checkLoginLimits,
+  checkVerifyOtpLimits,
+  getRequestMeta,
+} = require('../utils/authSecurity');
 
 const router = express.Router();
 
@@ -80,17 +87,29 @@ router.post('/login', async (req, res) => {
     if (!emailOrPhone || !password)
       return res.status(400).json({ success: false, message: 'Email/phone and password required' });
 
-    const val    = emailOrPhone.toLowerCase().trim();
+    const val = emailOrPhone.toLowerCase().trim();
+    const { ip } = getRequestMeta(req);
+    const limit = await checkLoginLimits(val, ip);
+    if (!limit.allowed) {
+      await logAuthEvent(req, { action: 'login_failed', email: val, success: false, meta: { reason: 'rate_limited' } });
+      return res.status(limit.status).json({ success: false, message: limit.message });
+    }
+
     const result = await query(
       'SELECT * FROM users WHERE email = $1 OR phone = $1 LIMIT 1', [val]);
-    if (result.rowCount === 0)
+    if (result.rowCount === 0) {
+      await logAuthEvent(req, { action: 'login_failed', email: val, success: false, meta: { reason: 'user_not_found' } });
       return res.status(401).json({ success: false, message: 'Invalid credentials' });
+    }
 
     const user  = result.rows[0];
     const valid = await bcrypt.compare(password, user.password_hash);
-    if (!valid)
+    if (!valid) {
+      await logAuthEvent(req, { action: 'login_failed', email: val, userId: user.id, success: false, meta: { reason: 'bad_password' } });
       return res.status(401).json({ success: false, message: 'Invalid credentials' });
+    }
 
+    await logAuthEvent(req, { action: 'login_success', email: user.email, userId: user.id, success: true });
     const token = signToken(user.id);
     return res.json({
       success: true, token,
@@ -153,13 +172,33 @@ router.post('/forgot-password', async (req, res) => {
     if (!email)
       return res.status(400).json({ success: false, message: 'Email required' });
 
+    const normalizedEmail = email.toLowerCase().trim();
+    const { ip } = getRequestMeta(req);
+    const limit = await checkForgotPasswordLimits(normalizedEmail, ip);
+    if (!limit.allowed) {
+      await logAuthEvent(req, {
+        action: 'forgot_password',
+        email: normalizedEmail,
+        success: false,
+        meta: { reason: 'rate_limited' },
+      });
+      return res.status(limit.status).json({ success: false, message: limit.message });
+    }
+
     const result = await query(
       'SELECT id, email FROM users WHERE email = $1 LIMIT 1',
-      [email.toLowerCase().trim()]
+      [normalizedEmail]
     );
 
-    if (result.rowCount === 0)
+    if (result.rowCount === 0) {
+      await logAuthEvent(req, {
+        action: 'forgot_password',
+        email: normalizedEmail,
+        success: false,
+        meta: { reason: 'email_not_found' },
+      });
       return res.json({ success: true, message: 'If this email exists, a code has been sent.' });
+    }
 
     const user    = result.rows[0];
     const otp     = crypto.randomInt(100000, 999999).toString();
@@ -174,6 +213,12 @@ router.post('/forgot-password', async (req, res) => {
     );
 
     await sendResetEmail(user.email, otp);
+    await logAuthEvent(req, {
+      action: 'forgot_password',
+      email: user.email,
+      userId: user.id,
+      success: true,
+    });
 
     return res.json({ success: true, message: 'Reset code sent to your email.' });
   } catch (err) {
@@ -189,25 +234,69 @@ router.post('/verify-otp', async (req, res) => {
     if (!email || !otp)
       return res.status(400).json({ success: false, message: 'Email and OTP required' });
 
+    const normalizedEmail = email.toLowerCase().trim();
+    const { ip } = getRequestMeta(req);
+    const limit = await checkVerifyOtpLimits(normalizedEmail, ip);
+    if (!limit.allowed) {
+      await logAuthEvent(req, {
+        action: 'verify_otp_failed',
+        email: normalizedEmail,
+        success: false,
+        meta: { reason: 'rate_limited' },
+      });
+      return res.status(limit.status).json({ success: false, message: limit.message });
+    }
+
     const result = await query(
       `SELECT prt.token, prt.expires_at, prt.used, u.id as user_id
        FROM password_reset_tokens prt
        JOIN users u ON u.id = prt.user_id
        WHERE u.email = $1
        ORDER BY prt.expires_at DESC LIMIT 1`,
-      [email.toLowerCase().trim()]
+      [normalizedEmail]
     );
 
-    if (result.rowCount === 0)
+    if (result.rowCount === 0) {
+      await logAuthEvent(req, {
+        action: 'verify_otp_failed',
+        email: normalizedEmail,
+        success: false,
+        meta: { reason: 'no_token' },
+      });
       return res.status(400).json({ success: false, message: 'Invalid or expired code' });
+    }
 
     const row = result.rows[0];
-    if (row.used)
+    if (row.used) {
+      await logAuthEvent(req, {
+        action: 'verify_otp_failed',
+        email: normalizedEmail,
+        userId: row.user_id,
+        success: false,
+        meta: { reason: 'already_used' },
+      });
       return res.status(400).json({ success: false, message: 'Code already used' });
-    if (new Date() > new Date(row.expires_at))
+    }
+    if (new Date() > new Date(row.expires_at)) {
+      await logAuthEvent(req, {
+        action: 'verify_otp_failed',
+        email: normalizedEmail,
+        userId: row.user_id,
+        success: false,
+        meta: { reason: 'expired' },
+      });
       return res.status(400).json({ success: false, message: 'Code expired. Request a new one.' });
-    if (row.token !== otp.trim())
+    }
+    if (row.token !== otp.trim()) {
+      await logAuthEvent(req, {
+        action: 'verify_otp_failed',
+        email: normalizedEmail,
+        userId: row.user_id,
+        success: false,
+        meta: { reason: 'incorrect_code' },
+      });
       return res.status(400).json({ success: false, message: 'Incorrect code' });
+    }
 
     const resetToken  = crypto.randomBytes(32).toString('hex');
     const resetExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 min
@@ -218,6 +307,13 @@ router.post('/verify-otp', async (req, res) => {
        WHERE user_id = $3`,
       [resetToken, resetExpiry, row.user_id]
     );
+
+    await logAuthEvent(req, {
+      action: 'verify_otp_success',
+      email: normalizedEmail,
+      userId: row.user_id,
+      success: true,
+    });
 
     return res.json({ success: true, resetToken });
   } catch (err) {

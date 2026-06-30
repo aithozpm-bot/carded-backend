@@ -66,6 +66,39 @@ cp .env.example .env
 node src/db/migrate.js
 ```
 
+Apply only the new `auth_events` table on an existing database (no data loss):
+
+```bash
+npm run db:migrate
+```
+
+Reset database (**deletes all data** — users, cards, logs):
+
+```bash
+npm run db:reset
+```
+
+---
+
+## 🔒 Auth Security (rate limits + audit log)
+
+`auth_events` table logs login, forgot-password, and OTP attempts with IP and user-agent.
+
+| Endpoint | Limit |
+|----------|-------|
+| `POST /auth/forgot-password` | 3 emails/hour per account, 10/hour per IP, 3 min cooldown |
+| `POST /auth/login` (failed) | 5/hour per account, 10/hour per IP |
+| `POST /auth/verify-otp` (failed) | 10/hour per account, 20/hour per IP |
+
+Query recent events in Neon:
+
+```sql
+SELECT action, email, ip, user_agent, success, created_at
+FROM auth_events
+ORDER BY created_at DESC
+LIMIT 50;
+```
+
 ---
 
 ## 🚀 Step 2 — Run Locally
