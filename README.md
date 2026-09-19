@@ -114,6 +114,27 @@ Then visit:
 - `http://localhost:3000/health`
 - `http://localhost:3000/api-docs`
 - `http://localhost:3000/delete-account`
+- `http://localhost:3000/analytics?secret=crd7Qs9mK2xVp8Nw4Jf6Ty3Ha5Lc1Ze0RuBgD`
+
+---
+
+## 📊 Private Analytics Dashboard
+
+The access secret is defined as `ANALYTICS_SECRET` at the top of
+`src/routes/analytics.js`. Open the dashboard at:
+
+```text
+https://your-app.vercel.app/analytics?secret=crd7Qs9mK2xVp8Nw4Jf6Ty3Ha5Lc1Ze0RuBgD
+```
+
+The dashboard includes date and contact filters, growth comparisons, activation,
+scan-source/category/lead breakdowns, authentication health, data completeness,
+engaged users, recent signups, and CSV export. Responses are not cached or
+indexed. The secret can also be passed in the `x-analytics-secret` header when
+requesting `format=json` or `format=csv`.
+
+Keep this URL private. Because the secret lives in source, anyone with repository
+access can read it — rotate the constant in `src/routes/analytics.js` if it leaks.
 
 ---
 

@@ -6,6 +6,7 @@ const authRoutes          = require('./routes/auth');
 const cardsRoutes         = require('./routes/cards');
 const collectedRoutes     = require('./routes/collected');
 const deleteAccountRoutes = require('./routes/deleteAccount');
+const analyticsRoutes     = require('./routes/analytics');
 
 // ─── Swagger ──────────────────────────────────────────────────
 const swaggerUi   = require('swagger-ui-express');
@@ -37,6 +38,7 @@ app.use('/',          deleteAccountRoutes);
 app.use('/auth',      authRoutes);
 app.use('/cards',     cardsRoutes);
 app.use('/collected', collectedRoutes);
+app.use('/analytics', analyticsRoutes);
 
 // ─── Health check ─────────────────────────────────────────────
 app.get('/health', (_req, res) => {
