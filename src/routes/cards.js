@@ -12,6 +12,15 @@ cloudinary.config({
 });
 const router   = express.Router();
 const MAX_CARDS = 5;
+// New cards may use only these template indexes.
+// Existing cards keep their current index, including hidden templates.
+const SELECTABLE_TEMPLATE_INDEXES = new Set([0, 4, 5, 10, 11, 13]);
+
+function parseTemplateIndex(value) {
+  if (value === undefined || value === null || value === '') return null;
+  const n = Number(value);
+  return Number.isInteger(n) ? n : undefined;
+}
 
 // ─── Multer config — store in /tmp (Vercel compatible) ───────
 const storage = multer.diskStorage({
@@ -104,6 +113,12 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Required: name, designation, company, email1, phone1' });
     }
 
+    const parsedTemplate = parseTemplateIndex(templateIndex);
+    const chosenTemplate = parsedTemplate === null ? 0 : parsedTemplate;
+    if (chosenTemplate === undefined || !SELECTABLE_TEMPLATE_INDEXES.has(chosenTemplate)) {
+      return res.status(400).json({ success: false, message: 'This template is no longer available.' });
+    }
+
     const result = await query(
       `INSERT INTO cards
          (user_id, nickname, name, designation, company,
@@ -112,7 +127,7 @@ router.post('/', async (req, res) => {
        RETURNING *`,
       [req.userId, nickname || name, name, designation, company,
        email1, email2 || '', phone1, phone2 || '', website || '', address || '',
-       templateIndex ?? 0, photoUrl || '']
+       chosenTemplate, photoUrl || '']
     );
     return res.status(201).json({ success: true, card: toCard(result.rows[0]) });
   } catch (err) {
@@ -125,13 +140,22 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const existing = await query(
-      'SELECT id FROM cards WHERE id = $1 AND user_id = $2',
+      'SELECT id, template_index FROM cards WHERE id = $1 AND user_id = $2',
       [req.params.id, req.userId]
     );
     if (existing.rowCount === 0) return res.status(404).json({ success: false, message: 'Card not found' });
 
     const { nickname, name, designation, company, email1, email2,
             phone1, phone2, website, address, templateIndex, photoUrl } = req.body;
+
+    const requestedTemplate = parseTemplateIndex(templateIndex);
+    const currentTemplate = existing.rows[0].template_index;
+    if (requestedTemplate === undefined ||
+        (requestedTemplate !== null &&
+         !SELECTABLE_TEMPLATE_INDEXES.has(requestedTemplate) &&
+         requestedTemplate !== currentTemplate)) {
+      return res.status(400).json({ success: false, message: 'This template is no longer available.' });
+    }
 
     const result = await query(
       `UPDATE cards SET
